@@ -343,6 +343,7 @@ void read_page() {
 ////////////////////////////////////
 ////////////////////////////////////
 int avrisp() { 
+  uint8_t data, low, high;
   uint8_t ch = getch();
   switch (ch) {
   case '0': // signon
@@ -378,12 +379,12 @@ int avrisp() {
     break;
 
   case 0x60: //STK_PROG_FLASH
-    uint8_t low = getch();
-    uint8_t high = getch();
+    low = getch();
+    high = getch();
     empty_reply();
     break;
   case 0x61: //STK_PROG_DATA
-    uint8_t data = getch();
+    data = getch();
     empty_reply();
     break;
 
