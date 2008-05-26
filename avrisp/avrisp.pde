@@ -1,9 +1,9 @@
 // this sketch turns the Arduino into a AVRISP
 // using the following pins:
 // 10: slave reset
-// 11: SCK
+// 11: MOSI
 // 12: MISO
-// 13: MOSI
+// 13: SCK
 
 // Put an LED (with resistor) on the following pins:
 // 9: Heartbeat - shows the programmer is running
