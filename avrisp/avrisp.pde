@@ -55,7 +55,7 @@ int pmode=0;
 int here;
 uint8_t buff[256]; // global block storage
 
-#define beget16(addr) (*addr * 256 + *(addr+1))
+#define beget16(addr) (*addr * 256 + *(addr+1) )
 typedef struct param {
   uint8_t devicecode;
   uint8_t revision;
@@ -264,16 +264,24 @@ void flash(uint8_t hilo, int addr, uint8_t data) {
 void commit(int addr) {
   spi_transaction(0x4C, (addr >> 8) & 0xFF, addr & 0xFF, 0);
 }
-#define current_page() (here & 0xFFFFF0)
+
+//#define _current_page(x) (here & 0xFFFFE0)
+int current_page(int addr) {
+  if (param.pagesize == 32) return here & 0xFFFFFFF0;
+  if (param.pagesize == 64) return here & 0xFFFFFFE0;
+  if (param.pagesize == 128) return here & 0xFFFFFFC0;
+  if (param.pagesize == 256) return here & 0xFFFFFF80;
+  return here;
+}
 uint8_t write_flash(int length) {
   if (param.pagesize < 1) return STK_FAILED;
-  //if (param.pagesize != 16) return STK_FAILED;
-  int page = current_page();
+  //if (param.pagesize != 64) return STK_FAILED;
+  int page = current_page(here);
   int x = 0;
   while (x < length) {
-    if (page != current_page()) {
+    if (page != current_page(here)) {
       commit(page);
-      page = current_page();
+      page = current_page(here);
     }
     flash(LOW, here, buff[x++]);
     flash(HIGH, here, buff[x++]);
