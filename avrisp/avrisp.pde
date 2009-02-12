@@ -9,7 +9,12 @@
 // 9: Heartbeat - shows the programmer is running
 // 8: Error - Lights up if something goes wrong (use red if that makes sense)
 // 7: Programming - In communication with the slave
-
+// 
+// February 2009 by Randall Bohn
+// - Added support for writing to EEPROM (what took so long?)
+// Windows users should consider WinAVR's avrdude instead of the
+// avrdude included with Arduino software.
+//
 // January 2008 by Randall Bohn
 // - Thanks to Amplificar for helping me with the STK500 protocol
 // - The AVRISP/STK500 (mk I) protocol is used in the arduino bootloader
@@ -42,8 +47,8 @@ void pulse(int pin, int times);
 void setup() {
   // 19200?
   Serial.begin(19200);
-  pinMode(5, OUTPUT);
-  pulse(5, 2);
+  pinMode(7, OUTPUT);
+  pulse(7, 2);
   pinMode(8, OUTPUT);
   pulse(8, 2);
   pinMode(9, OUTPUT);
@@ -52,6 +57,7 @@ void setup() {
 
 int error=0;
 int pmode=0;
+// address for reading and writing, set by 'U' command
 int here;
 uint8_t buff[256]; // global block storage
 
@@ -74,8 +80,10 @@ typedef struct param {
 parameter;
 
 parameter param;
+
+// this provides a heartbeat on pin 9, so you can tell the software is running.
 uint8_t hbval=128;
-int8_t hbdelta=2;
+int8_t hbdelta=8;
 void heartbeat() {
   if (hbval > 192) hbdelta = -hbdelta;
   if (hbval < 32) hbdelta = -hbdelta;
@@ -220,18 +228,17 @@ void set_parameters() {
 }
 
 void start_pmode() {
-  pinMode(MISO, INPUT);
-  pinMode(MOSI, OUTPUT);
-  pinMode(SCK, OUTPUT);
-  pinMode(RESET, OUTPUT);
-
   spi_init();
   // following delays may not work on all targets...
+  pinMode(RESET, OUTPUT);
   digitalWrite(RESET, HIGH);
+  pinMode(SCK, OUTPUT);
   digitalWrite(SCK, LOW);
   delay(50);
   digitalWrite(RESET, LOW);
   delay(50);
+  pinMode(MISO, INPUT);
+  pinMode(MOSI, OUTPUT);
   spi_transaction(0xAC, 0x53, 0x00, 0x00);
   pmode = 1;
 }
@@ -293,6 +300,17 @@ uint8_t write_flash(int length) {
   return STK_OK;
 }
 
+uint8_t write_eeprom(int length) {
+  // here is a word address, so we use here*2
+  // this writes byte-by-byte,
+  // page writing may be faster (4 bytes at a time)
+  for (int x = 0; x < length; x++) {
+    spi_transaction(0xC0, 0x00, here*2+x, buff[x]);
+    delay(45);
+  } 
+  return STK_OK;
+}
+
 void program_page() {
   char result = (char) STK_FAILED;
   int length = 256 * getch() + getch();
@@ -306,7 +324,8 @@ void program_page() {
   }
   if (CRC_EOP == getch()) {
     Serial.print((char) STK_INSYNC);
-    if (memtype = 'F') result = (char)write_flash(length);
+    if (memtype == 'F') result = (char)write_flash(length);
+    if (memtype == 'E') result = (char)write_eeprom(length);
     Serial.print(result);
   } 
   else {
@@ -329,7 +348,16 @@ char flash_read_page(int length) {
     here++;
   }
   return STK_OK;
-}  
+}
+
+char eeprom_read_page(int length) {
+  // here again we have a word address
+  for (int x = 0; x < length; x++) {
+    uint8_t ee = spi_transaction(0xA0, 0x00, here*2+x, 0xFF);
+    Serial.print((char) ee);
+  }
+  return STK_OK;
+}
 
 void read_page() {
   char result = (char)STK_FAILED;
@@ -341,6 +369,7 @@ void read_page() {
   }
   Serial.print((char) STK_INSYNC);
   if (memtype == 'F') result = flash_read_page(length);
+  if (memtype == 'E') result = eeprom_read_page(length);
   Serial.print(result);
   return;
 }
